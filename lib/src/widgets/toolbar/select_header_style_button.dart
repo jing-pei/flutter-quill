@@ -67,7 +67,8 @@ class _SelectHeaderStyleButtonState extends State<SelectHeaderStyleButton> {
       mainAxisSize: MainAxisSize.min,
       children: List.generate(4, (index) {
         return Padding(
-          padding: EdgeInsets.symmetric(horizontal: !kIsWeb ? 1.0 : 5.0),
+          // 修改，padding
+          padding: EdgeInsets.symmetric(horizontal: !kIsWeb ? 2.0 : 5.0),
           child: ConstrainedBox(
             constraints: BoxConstraints.tightFor(
               width: widget.iconSize * kIconButtonFactor,
@@ -80,21 +81,28 @@ class _SelectHeaderStyleButtonState extends State<SelectHeaderStyleButton> {
               visualDensity: VisualDensity.compact,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(2)),
-              fillColor: _valueToText[_value] == _valueString[index]
-                  ? (widget.iconTheme?.iconSelectedFillColor ??
-                      theme.toggleableActiveColor)
-                  : (widget.iconTheme?.iconUnselectedFillColor ??
-                      theme.canvasColor),
+              // 修改，去掉toolbar按钮背景色
+              // fillColor: _valueToText[_value] == _valueString[index]
+              //     ? (widget.iconTheme?.iconSelectedFillColor ??
+              //         theme.toggleableActiveColor)
+              //     : (widget.iconTheme?.iconUnselectedFillColor ??
+              //         theme.canvasColor),
               onPressed: () =>
                   widget.controller.formatSelection(_valueAttribute[index]),
               child: Text(
                 _valueString[index],
                 style: style.copyWith(
+                  height: 1.1,
+                  fontSize: 19,
+                  fontWeight: FontWeight.normal,
                   color: _valueToText[_value] == _valueString[index]
-                      ? (widget.iconTheme?.iconSelectedColor ??
-                          theme.primaryIconTheme.color)
-                      : (widget.iconTheme?.iconUnselectedColor ??
-                          theme.iconTheme.color),
+                      // 修改，按钮选中颜色
+                      // ? (widget.iconTheme?.iconSelectedColor ??
+                      //     theme.primaryIconTheme.color)
+                      // : (widget.iconTheme?.iconUnselectedColor ??
+                      //     theme.iconTheme.color),
+                      ? theme.primaryColor
+                      : theme.iconTheme.color,
                 ),
               ),
             ),

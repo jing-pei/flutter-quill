@@ -248,6 +248,7 @@ class QuillEditor extends StatefulWidget {
       this.embedBuilder = defaultEmbedBuilder,
       this.customStyleBuilder,
       this.floatingCursorDisabled = false,
+      this.mentionBuilder,
       Key? key});
 
   factory QuillEditor.basic({
@@ -313,6 +314,8 @@ class QuillEditor extends StatefulWidget {
   final CustomStyleBuilder? customStyleBuilder;
 
   final bool floatingCursorDisabled;
+
+  final TextSpan Function(leaf.Embed)? mentionBuilder;
 
   @override
   _QuillEditorState createState() => _QuillEditorState();
@@ -417,6 +420,7 @@ class _QuillEditorState extends State<QuillEditor>
       embedBuilder: widget.embedBuilder,
       customStyleBuilder: widget.customStyleBuilder,
       floatingCursorDisabled: widget.floatingCursorDisabled,
+      mentionBuilder: widget.mentionBuilder,
     );
 
     return _selectionGestureDetectorBuilder.build(

@@ -25,7 +25,8 @@ class QuillIconButton extends StatelessWidget {
       child: RawMaterialButton(
         visualDensity: VisualDensity.compact,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
-        fillColor: fillColor,
+        // 修改，去掉背景色
+        // fillColor: fillColor,
         elevation: 0,
         hoverElevation: hoverElevation,
         highlightElevation: hoverElevation,

@@ -145,6 +145,9 @@ class DefaultStyles {
     this.strikeThrough,
     this.inlineCode,
     this.link,
+//    修改
+    this.at,
+    this.channel,
     this.color,
     this.placeHolder,
     this.lists,
@@ -174,6 +177,9 @@ class DefaultStyles {
   final TextStyle? sizeLarge; // 'large'
   final TextStyle? sizeHuge; // 'huge'
   final TextStyle? link;
+//  修改
+  final TextStyle? at;
+  final TextStyle? channel;
   final Color? color;
   final DefaultTextBlockStyle? placeHolder;
   final DefaultListBlockStyle? lists;
@@ -190,7 +196,7 @@ class DefaultStyles {
       fontSize: 16,
       height: 1.3,
     );
-    const baseSpacing = Tuple2<double, double>(6, 0);
+    const baseSpacing = Tuple2<double, double>(0, 0);
     String fontFamily;
     switch (themeData.platform) {
       case TargetPlatform.iOS:
@@ -269,11 +275,20 @@ class DefaultStyles {
           color: themeData.colorScheme.secondary,
           decoration: TextDecoration.underline,
         ),
+        // 修改
+        at: TextStyle(
+          color: themeData.accentColor,
+        ),
+        channel: TextStyle(
+          color: themeData.accentColor,
+        ),
+
+        // 修改，占位文字样式
         placeHolder: DefaultTextBlockStyle(
             defaultTextStyle.style.copyWith(
-              fontSize: 20,
-              height: 1.5,
-              color: Colors.grey.withOpacity(0.6),
+              fontSize: baseStyle.fontSize,
+              height: baseStyle.height,
+              color: const Color(0xFF8F959E).withOpacity(0.5),
             ),
             const Tuple2(0, 0),
             const Tuple2(0, 0),
@@ -326,6 +341,9 @@ class DefaultStyles {
         strikeThrough: other.strikeThrough ?? strikeThrough,
         inlineCode: other.inlineCode ?? inlineCode,
         link: other.link ?? link,
+        // 修改
+        at: other.at ?? at,
+        channel: other.channel ?? channel,
         color: other.color ?? color,
         placeHolder: other.placeHolder ?? placeHolder,
         lists: other.lists ?? lists,

@@ -73,6 +73,16 @@ class Style {
     return m;
   }
 
+  Map<String, dynamic> getBlocksAttributesExceptHeader() {
+    final m = <String, dynamic>{};
+    attributes.forEach((key, value) {
+      if (Attribute.blockKeysExceptHeader.contains(key)) {
+        m[value.key] = value.value;
+      }
+    });
+    return m;
+  }
+
   Style merge(Attribute attribute) {
     final merged = Map<String, Attribute>.from(_attributes);
     if (attribute.value == null) {

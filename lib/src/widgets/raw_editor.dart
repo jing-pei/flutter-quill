@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/cupertino.dart' hide KeyboardListener;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide KeyboardListener;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +16,7 @@ import '../models/documents/attribute.dart';
 import '../models/documents/document.dart';
 import '../models/documents/nodes/block.dart';
 import '../models/documents/nodes/line.dart';
+import '../models/documents/nodes/leaf.dart';
 import 'controller.dart';
 import 'cursor.dart';
 import 'default_styles.dart';
@@ -63,8 +64,12 @@ class RawEditor extends StatefulWidget {
       this.scrollPhysics,
       this.embedBuilder = defaultEmbedBuilder,
       this.customStyleBuilder,
-      this.floatingCursorDisabled = false})
-      : assert(maxHeight == null || maxHeight > 0, 'maxHeight cannot be null'),
+      this.floatingCursorDisabled = false,
+      this.mentionBuilder,
+      this.editable
+      })
+      : assert(editable != null, 'editable cannot be null'),
+        assert(maxHeight == null || maxHeight > 0, 'maxHeight cannot be null'),
         assert(minHeight == null || minHeight >= 0, 'minHeight cannot be null'),
         assert(maxHeight == null || minHeight == null || maxHeight >= minHeight,
             'maxHeight cannot be null'),
@@ -97,6 +102,10 @@ class RawEditor extends StatefulWidget {
   final EmbedBuilder embedBuilder;
   final CustomStyleBuilder? customStyleBuilder;
   final bool floatingCursorDisabled;
+    // 修改，添加mention builder
+  final InlineSpan Function(Embed)? mentionBuilder;
+  // 修改，添加是否可编辑参数
+  final bool editable;
 
   @override
   State<StatefulWidget> createState() => RawEditorState();
@@ -286,7 +295,9 @@ class RawEditorState extends EditorState
             indentLevelCounts: indentLevelCounts,
             onCheckboxTap: _handleCheckboxTap,
             readOnly: widget.readOnly,
-            customStyleBuilder: widget.customStyleBuilder);
+            customStyleBuilder: widget.customStyleBuilder,
+            mentionBuilder: widget.mentionBuilder,
+            );
         result.add(editableTextBlock);
       } else {
         throw StateError('Unreachable.');
@@ -304,6 +315,9 @@ class RawEditorState extends EditorState
       customStyleBuilder: widget.customStyleBuilder,
       styles: _styles!,
       readOnly: widget.readOnly,
+      // onMentionTap: widget.onMentionTap,
+      mentionBuilder: widget.mentionBuilder,
+      editable: widget.editable,
     );
     final editableTextLine = EditableTextLine(
         node,
@@ -460,6 +474,10 @@ class RawEditorState extends EditorState
         openConnectionIfNeeded();
       }
     }
+    // 修改，添加延迟解决首次聚焦没有滚动到光标位置
+    Future.delayed(Duration(milliseconds: 100), () {
+      if (_hasFocus) _showCaretOnScreen();
+    });
   }
 
   bool _shouldShowSelectionHandles() {
@@ -501,12 +519,13 @@ class RawEditorState extends EditorState
       _onChangeTextEditingValue(ignoreFocus);
     } else {
       requestKeyboard();
-      if (mounted) {
-        setState(() {
-          // Use widget.controller.value in build()
-          // Trigger build and updateChildren
-        });
-      }
+    }
+    // 修改，无论ignoreFocus ture或false 都setState
+    if (mounted) {
+      setState(() {
+        // Use widget.controller.value in build()
+        // Trigger build and updateChildren
+      });
     }
   }
 
@@ -581,6 +600,8 @@ class RawEditorState extends EditorState
     } else {
       WidgetsBinding.instance!.removeObserver(this);
     }
+    // 修改，修复编辑器focus后selection不变的情况下光标丢失问题
+    setState(() {});
     updateKeepAlive();
   }
 

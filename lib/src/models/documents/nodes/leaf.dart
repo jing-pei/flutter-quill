@@ -218,6 +218,10 @@ class Text extends Leaf {
 
   @override
   String toPlainText() => value;
+
+  @override
+  String toContent() => value;
+
 }
 
 /// An embed node inside of a line in a Quill document.
@@ -248,5 +252,16 @@ class Embed extends Leaf {
   /// // Embed nodes are represented as unicode object replacement character in
   // plain text.
   @override
-  String toPlainText() => kObjectReplacementCharacter;
+  String toPlainText() {
+    return kObjectReplacementCharacter;
+  }
+
+  // 修改，添加@和#的embed类型不显示文本
+  @override
+  String toContent() {
+    if(value is MentionEmbed) {
+      return (value as MentionEmbed).value;
+    }
+    return kObjectReplacementCharacter;
+  }
 }

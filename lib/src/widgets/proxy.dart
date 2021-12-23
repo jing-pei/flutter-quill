@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'box.dart';
+import 'package:im/utils/utils.dart';
 
 class BaselineProxy extends SingleChildRenderObjectWidget {
   const BaselineProxy({Key? key, Widget? child, this.textStyle, this.padding})
@@ -75,28 +76,40 @@ class RenderBaselineProxy extends RenderProxyBox {
 }
 
 class EmbedProxy extends SingleChildRenderObjectWidget {
-  const EmbedProxy(Widget child) : super(child: child);
+  // 修改，添加embedSize参数，保存图片宽高
+  final Size? embedSize;
+  const EmbedProxy(Widget child, {this.embedSize}) : super(child: child);
 
   @override
   RenderEmbedProxy createRenderObject(BuildContext context) =>
-      RenderEmbedProxy(null);
+      RenderEmbedProxy(null, embedSize: embedSize);
 }
 
 class RenderEmbedProxy extends RenderProxyBox implements RenderContentProxyBox {
-  RenderEmbedProxy(RenderBox? child) : super(child);
+  // 修改，添加embedSize参数，有此参数则优先作为渲染宽高
+  final Size? embedSize;
+  RenderEmbedProxy(RenderBox? child, {this.embedSize}) : super(child);
+
+  double get width => embedSize == null
+      ? size.width
+      : getImageSize(embedSize!.width, embedSize!.height).item1 as double;
+  double get height => embedSize == null
+      ? size.height
+      : getImageSize(embedSize!.width, embedSize!.height).item2 as double;
 
   @override
   List<TextBox> getBoxesForSelection(TextSelection selection) {
     if (!selection.isCollapsed) {
       return <TextBox>[
-        TextBox.fromLTRBD(0, 0, size.width, size.height, TextDirection.ltr)
+        // 修改
+        TextBox.fromLTRBD(0, 0, width, height, TextDirection.ltr)
       ];
     }
-
-    final left = selection.extentOffset == 0 ? 0.0 : size.width;
-    final right = selection.extentOffset == 0 ? 0.0 : size.width;
+    // 修改
+    final left = selection.extentOffset == 0 ? 0.0 : width;
+    final right = selection.extentOffset == 0 ? 0.0 : width;
     return <TextBox>[
-      TextBox.fromLTRBD(left, 0, right, size.height, TextDirection.ltr)
+      TextBox.fromLTRBD(left, 0, right, height, TextDirection.ltr)
     ];
   }
 
@@ -116,7 +129,8 @@ class RenderEmbedProxy extends RenderProxyBox implements RenderContentProxyBox {
 
   @override
   TextPosition getPositionForOffset(Offset offset) =>
-      TextPosition(offset: offset.dx > size.width / 2 ? 1 : 0);
+      // 修改，修复点击embedObject右侧聚焦到左边的bug
+      TextPosition(offset: offset.dx > width / 2 ? 1 : 0);
 
   @override
   TextRange getWordBoundary(TextPosition position) =>

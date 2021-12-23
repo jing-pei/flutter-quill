@@ -13,6 +13,7 @@ import 'delegate.dart';
 import 'editor.dart';
 import 'text_line.dart';
 import 'text_selection.dart';
+import '../models/documents/nodes/leaf.dart' as leaf;
 
 const List<int> arabianRomanNumbers = [
   1000,
@@ -82,6 +83,7 @@ class EditableTextBlock extends StatelessWidget {
   final Map<int, int> indentLevelCounts;
   final Function(int, bool) onCheckboxTap;
   final bool readOnly;
+  final InlineSpan Function(leaf.Embed)? mentionBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +130,7 @@ class EditableTextBlock extends StatelessWidget {
             customStyleBuilder: customStyleBuilder,
             styles: styles!,
             readOnly: readOnly,
+            mentionBuilder: mentionBuilder,
           ),
           _getIndentWidth(),
           _getSpacingForLine(line, index, count, defaultStyles),
@@ -152,6 +155,8 @@ class EditableTextBlock extends StatelessWidget {
         index: index,
         indentLevelCounts: indentLevelCounts,
         count: count,
+        // style: defaultStyles!.leading!.style,
+        /// 修改，更改1. 2. 3. 默认颜色
         style: defaultStyles!.leading!.style,
         attrs: attrs,
         width: 32,
@@ -162,7 +167,7 @@ class EditableTextBlock extends StatelessWidget {
     if (attrs[Attribute.list.key] == Attribute.ul) {
       return QuillBulletPoint(
         style:
-            defaultStyles!.leading!.style.copyWith(fontWeight: FontWeight.bold),
+        defaultStyles!.leading!.style.copyWith(fontWeight: FontWeight.w600,),
         width: 32,
       );
     }
@@ -190,12 +195,11 @@ class EditableTextBlock extends StatelessWidget {
         index: index,
         indentLevelCounts: indentLevelCounts,
         count: count,
-        style: defaultStyles!.code!.style
-            .copyWith(color: defaultStyles.code!.style.color!.withOpacity(0.4)),
+        style: defaultStyles!.code!.style,
         width: 32,
         attrs: attrs,
-        padding: 16,
-        withDot: false,
+        /// 修改
+        padding: 10,
       );
     }
     return null;
@@ -211,7 +215,7 @@ class EditableTextBlock extends StatelessWidget {
     }
 
     if (attrs.containsKey(Attribute.blockQuote.key)) {
-      return 16.0 + extraIndent;
+      return 14.0 + extraIndent;
     }
 
     var baseIndent = 0.0;
@@ -292,12 +296,12 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
         _savedPadding = padding,
         _contentPadding = contentPadding,
         super(
-          children,
-          block,
-          textDirection,
-          scrollBottomInset,
-          padding.add(contentPadding),
-        );
+        children,
+        block,
+        textDirection,
+        scrollBottomInset,
+        padding.add(contentPadding),
+      );
 
   EdgeInsetsGeometry _savedPadding;
   EdgeInsets _contentPadding;
@@ -353,9 +357,9 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
   Offset getOffsetForCaret(TextPosition position) {
     final child = childAtPosition(position);
     return child.getOffsetForCaret(TextPosition(
-          offset: position.offset - child.getContainer().offset,
-          affinity: position.affinity,
-        )) +
+      offset: position.offset - child.getContainer().offset,
+      affinity: position.affinity,
+    )) +
         (child.parentData as BoxParentData).offset;
   }
 
@@ -364,7 +368,7 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
     final child = childAtOffset(offset)!;
     final parentData = child.parentData as BoxParentData;
     final localPosition =
-        child.getPositionForOffset(offset - parentData.offset);
+    child.getPositionForOffset(offset - parentData.offset);
     return TextPosition(
       offset: localPosition.offset + child.getContainer().offset,
       affinity: localPosition.affinity,
@@ -389,7 +393,7 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
 
     final child = childAtPosition(position);
     final childLocalPosition =
-        TextPosition(offset: position.offset - child.getContainer().offset);
+    TextPosition(offset: position.offset - child.getContainer().offset);
     final result = child.getPositionAbove(childLocalPosition);
     if (result != null) {
       return TextPosition(offset: result.offset + child.getContainer().offset);
@@ -402,7 +406,7 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
 
     final caretOffset = child.getOffsetForCaret(childLocalPosition);
     final testPosition =
-        TextPosition(offset: sibling.getContainer().length - 1);
+    TextPosition(offset: sibling.getContainer().length - 1);
     final testOffset = sibling.getOffsetForCaret(testPosition);
     final finalOffset = Offset(caretOffset.dx, testOffset.dy);
     return TextPosition(
@@ -416,7 +420,7 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
 
     final child = childAtPosition(position);
     final childLocalPosition =
-        TextPosition(offset: position.offset - child.getContainer().offset);
+    TextPosition(offset: position.offset - child.getContainer().offset);
     final result = child.getPositionBelow(childLocalPosition);
     if (result != null) {
       return TextPosition(offset: result.offset + child.getContainer().offset);
@@ -515,11 +519,11 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
     final decorationPadding = resolvedPadding! - _contentPadding;
 
     final filledConfiguration =
-        configuration.copyWith(size: decorationPadding.deflateSize(size));
+    configuration.copyWith(size: decorationPadding.deflateSize(size));
     final debugSaveCount = context.canvas.getSaveCount();
 
     final decorationOffset =
-        offset.translate(decorationPadding.left, decorationPadding.top);
+    offset.translate(decorationPadding.left, decorationPadding.top);
     _painter!.paint(context.canvas, decorationOffset, filledConfiguration);
     if (debugSaveCount != context.canvas.getSaveCount()) {
       throw '${_decoration.runtimeType} painter had mismatching save and  '
@@ -612,5 +616,168 @@ class _EditableBlock extends MultiChildRenderObjectWidget {
       ..setPadding(_padding)
       ..decoration = decoration
       ..contentPadding = _contentPadding;
+  }
+}
+
+class _NumberPoint extends StatelessWidget {
+  const _NumberPoint({
+    required this.index,
+    required this.indentLevelCounts,
+    required this.count,
+    required this.style,
+    required this.width,
+    required this.attrs,
+    this.withDot = true,
+    this.padding = 0.0,
+    Key? key,
+  }) : super(key: key);
+
+  final int index;
+  final Map<int?, int> indentLevelCounts;
+  final int count;
+  final TextStyle style;
+  final double width;
+  final Map<String, Attribute> attrs;
+  final bool withDot;
+  final double padding;
+
+  @override
+  Widget build(BuildContext context) {
+    var s = index.toString();
+    int? level = 0;
+    if (!attrs.containsKey(Attribute.indent.key) &&
+        !indentLevelCounts.containsKey(1)) {
+      indentLevelCounts.clear();
+      return Container(
+        alignment: AlignmentDirectional.topEnd,
+        width: width,
+        padding: EdgeInsetsDirectional.only(end: padding),
+        child: Text(withDot ? '$s.' : s, style: style),
+      );
+    }
+    if (attrs.containsKey(Attribute.indent.key)) {
+      level = attrs[Attribute.indent.key]!.value;
+    } else {
+      // first level but is back from previous indent level
+      // supposed to be "2."
+      indentLevelCounts[0] = 1;
+    }
+    if (indentLevelCounts.containsKey(level! + 1)) {
+      // last visited level is done, going up
+      indentLevelCounts.remove(level + 1);
+    }
+    final count = (indentLevelCounts[level] ?? 0) + 1;
+    indentLevelCounts[level] = count;
+
+    s = count.toString();
+    if (level % 3 == 1) {
+      // a. b. c. d. e. ...
+      s = _toExcelSheetColumnTitle(count);
+    } else if (level % 3 == 2) {
+      // i. ii. iii. ...
+      s = _intToRoman(count);
+    }
+    // level % 3 == 0 goes back to 1. 2. 3.
+
+    return Container(
+      alignment: AlignmentDirectional.topEnd,
+      width: width,
+      padding: EdgeInsetsDirectional.only(end: padding),
+      child: Text(withDot ? '$s.' : s, style: style),
+    );
+  }
+
+  String _toExcelSheetColumnTitle(int n) {
+    final result = StringBuffer();
+    while (n > 0) {
+      n--;
+      result.write(String.fromCharCode((n % 26).floor() + 97));
+      n = (n / 26).floor();
+    }
+
+    return result.toString().split('').reversed.join();
+  }
+
+  String _intToRoman(int input) {
+    var num = input;
+
+    if (num < 0) {
+      return '';
+    } else if (num == 0) {
+      return 'nulla';
+    }
+
+    final builder = StringBuffer();
+    for (var a = 0; a < arabianRomanNumbers.length; a++) {
+      final times = (num / arabianRomanNumbers[a])
+          .truncate(); // equals 1 only when arabianRomanNumbers[a] = num
+      // executes n times where n is the number of times you have to add
+      // the current roman number value to reach current num.
+      builder.write(romanNumbers[a] * times);
+      num -= times *
+          arabianRomanNumbers[
+          a]; // subtract previous roman number value from num
+    }
+
+    return builder.toString().toLowerCase();
+  }
+}
+
+class _BulletPoint extends StatelessWidget {
+  const _BulletPoint({
+    required this.style,
+    required this.width,
+    Key? key,
+  }) : super(key: key);
+
+  final TextStyle style;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: AlignmentDirectional.topEnd,
+      width: width,
+      padding: const EdgeInsetsDirectional.only(end: 13),
+      child: Text('•', style: style),
+    );
+  }
+}
+
+class _Checkbox extends StatelessWidget {
+  const _Checkbox({
+    Key? key,
+    this.style,
+    this.width,
+    this.isChecked = false,
+    this.offset,
+    this.onTap,
+  }) : super(key: key);
+  final TextStyle? style;
+  final double? width;
+  final bool isChecked;
+  final int? offset;
+  final Function(int, bool)? onTap;
+
+  void _onCheckboxClicked(bool? newValue) {
+    if (onTap != null && newValue != null && offset != null) {
+      onTap!(offset!, newValue);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: AlignmentDirectional.topEnd,
+      width: width,
+      padding: const EdgeInsetsDirectional.only(end: 13),
+      child: GestureDetector(
+        onLongPress: () => _onCheckboxClicked(!isChecked),
+        child: Checkbox(
+          value: isChecked,
+          onChanged: _onCheckboxClicked,
+        ),
+      ),
+    );
   }
 }

@@ -136,13 +136,17 @@ class Document {
     return block.queryChild(res.offset, true);
   }
 
-  void compose(Delta delta, ChangeSource changeSource) {
+  void compose(Delta delta, ChangeSource changeSource,
+      {bool autoAppendNewlineAfterImage = true,
+      bool autoAppendNewlineAfterVideo = true}) {
     assert(!_observer.isClosed);
     delta.trim();
-    assert(delta.isNotEmpty);
+    //assert(delta.isNotEmpty);
 
     var offset = 0;
-    delta = _transform(delta);
+    delta = _transform(delta,
+        autoAppendNewlineAfterImage: autoAppendNewlineAfterImage,
+        autoAppendNewlineAfterVideo: autoAppendNewlineAfterVideo);
     final originalDelta = toDelta();
     for (final op in delta.toList()) {
       final style =
@@ -174,6 +178,15 @@ class Document {
     _history.handleDocChange(change);
   }
 
+  void refreshDocument(
+      Delta change, Delta oldDelta, ChangeSource changeSource) {
+    _root.children.clear();
+    _delta = oldDelta.compose(change);
+    _loadDocument(_delta);
+    final onChange = Tuple3(oldDelta, change, changeSource);
+    _observer.add(onChange);
+  }
+
   Tuple2 undo() {
     return _history.undo(this);
   }
@@ -186,37 +199,44 @@ class Document {
 
   bool get hasRedo => _history.hasRedo;
 
-  static Delta _transform(Delta delta) {
+  static Delta _transform(Delta delta,
+      {bool autoAppendNewlineAfterImage = true,
+      bool autoAppendNewlineAfterVideo = true}) {
     final res = Delta();
     final ops = delta.toList();
     for (var i = 0; i < ops.length; i++) {
       final op = ops[i];
       res.push(op);
-      _autoAppendNewlineAfterEmbeddable(i, ops, op, res, 'video');
+      if (autoAppendNewlineAfterImage) {
+        _autoAppendNewlineAfterEmbeddable(i, ops, op, res, 'image');
+      }
+      if (autoAppendNewlineAfterVideo) {
+        _autoAppendNewlineAfterEmbeddable(i, ops, op, res, 'video');
+      }
     }
     return res;
   }
 
   static void _autoAppendNewlineAfterEmbeddable(
       int i, List<Operation> ops, Operation op, Delta res, String type) {
-    final nextOpIsEmbed = i + 1 < ops.length &&
+    final nextOpIsImage = i + 1 < ops.length &&
         ops[i + 1].isInsert &&
         ops[i + 1].data is Map &&
         (ops[i + 1].data as Map).containsKey(type);
-    if (nextOpIsEmbed &&
+    if (nextOpIsImage &&
         op.data is String &&
         (op.data as String).isNotEmpty &&
         !(op.data as String).endsWith('\n')) {
       res.push(Operation.insert('\n'));
     }
     // embed could be image or video
-    final opInsertEmbed =
+    final opInsertImage =
         op.isInsert && op.data is Map && (op.data as Map).containsKey(type);
     final nextOpIsLineBreak = i + 1 < ops.length &&
         ops[i + 1].isInsert &&
         ops[i + 1].data is String &&
         (ops[i + 1].data as String).startsWith('\n');
-    if (opInsertEmbed && (i + 1 == ops.length - 1 || !nextOpIsLineBreak)) {
+    if (opInsertImage && (i + 1 == ops.length - 1 || !nextOpIsLineBreak)) {
       // automatically append '\n' for embeddable
       res.push(Operation.insert('\n'));
     }
@@ -245,7 +265,7 @@ class Document {
       throw ArgumentError.value(doc, 'Document Delta cannot be empty.');
     }
 
-    assert((doc.last.data as String).endsWith('\n'));
+    // assert((doc.last.data as String).endsWith('\n'));
 
     var offset = 0;
     for (final op in doc.toList()) {

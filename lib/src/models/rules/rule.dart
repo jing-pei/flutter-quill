@@ -42,7 +42,8 @@ class Rules {
     const PreserveBlockStyleOnInsertRule(),
     const PreserveLineStyleOnSplitRule(),
     const ResetLineFormatOnNewLineRule(),
-    const AutoFormatLinksRule(),
+    // 修改，暂时去掉自动格式化链接
+    // const AutoFormatLinksRule(),
     const PreserveInlineStylesRule(),
     const CatchAllInsertRule(),
     const EnsureEmbedLineRule(),

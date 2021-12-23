@@ -107,6 +107,8 @@ abstract class Node extends LinkedListEntry<Node> {
   Node newInstance();
 
   String toPlainText();
+  
+  String toContent();
 
   Delta toDelta();
 

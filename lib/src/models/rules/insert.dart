@@ -86,8 +86,12 @@ class PreserveBlockStyleOnInsertRule extends InsertRule {
     final lineStyle =
         Style.fromJson(nextNewLine.item1?.attributes ?? <String, dynamic>{});
 
-    final blockStyle = lineStyle.getBlocksExceptHeader();
-    // Are we currently in a block? If not then ignore.
+    // 修改，添加获取blockStyle的方法，更换原来属性中k-v的获取方式
+    // 原因: web中粘贴复制的代码时发现attributes中会有属性重叠导致解析不正常，比如app中每一行
+    // 代码解析成一个code-block,应该是没考虑直接粘贴行为，目前以下修改后主动输入与粘贴没问题
+    // final blockStyle = lineStyle.getBlocksExceptHeader();
+    final blockStyle = lineStyle.getBlocksAttributesExceptHeader();
+    // Are we currently in a block? If wefaewfnot then ignore.
     if (blockStyle.isEmpty) {
       return null;
     }
@@ -353,8 +357,8 @@ class PreserveInlineStylesRule extends InsertRule {
         ..retain(index + (len ?? 0))
         ..insert(text, attributes);
     }
-
-    attributes.remove(Attribute.link.key);
+    // 修改，修复超链接中间插入文本会分成三段
+    // attributes.remove(Attribute.link.key);
     final delta = Delta()
       ..retain(index + (len ?? 0))
       ..insert(text, attributes.isEmpty ? null : attributes);

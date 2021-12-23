@@ -12,7 +12,9 @@ import '../models/documents/nodes/leaf.dart' as leaf;
 import '../models/documents/nodes/leaf.dart';
 import '../models/documents/nodes/line.dart';
 import '../models/documents/nodes/node.dart';
+import '../models/documents/nodes/embed.dart';
 import '../models/documents/style.dart';
+
 import '../utils/color.dart';
 import 'box.dart';
 import 'cursor.dart';
@@ -20,6 +22,13 @@ import 'default_styles.dart';
 import 'delegate.dart';
 import 'proxy.dart';
 import 'text_selection.dart';
+import 'package:flutter/gestures.dart';
+
+import 'package:im/routes.dart';
+import 'package:get/get.dart' hide Node;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:im/utils/emo_util.dart';
+import 'package:im/themes/default_theme.dart';
 
 class TextLine extends StatelessWidget {
   const TextLine({
@@ -29,6 +38,10 @@ class TextLine extends StatelessWidget {
     required this.readOnly,
     this.textDirection,
     this.customStyleBuilder,
+    // 修改，添加mentionBuilder
+    this.mentionBuilder,
+    // 修改，添加是否可编辑参数，只有为false才显示emoji和url超链接
+    this.editable = true,
     Key? key,
   }) : super(key: key);
 
@@ -38,16 +51,41 @@ class TextLine extends StatelessWidget {
   final DefaultStyles styles;
   final bool readOnly;
   final CustomStyleBuilder? customStyleBuilder;
+  final bool editable;
+
+  final InlineSpan Function(Embed)? mentionBuilder;
 
   @override
   Widget build(BuildContext context) {
     assert(debugCheckHasMediaQuery(context));
-    if (line.hasEmbed && line.childCount == 1) {
-      // For video, it is always single child
-      final embed = line.children.single as Embed;
-      return EmbedProxy(embedBuilder(context, embed, readOnly));
+    /// NOTE: 官方版本内容
+    // if (line.hasEmbed && line.childCount == 1) {
+    //   // For video, it is always single child
+    //   final embed = line.children.single as Embed;
+    //   return EmbedProxy(embedBuilder(context, embed, readOnly));
+    // }
+
+    // In rare circumstances, the line could contain an Embed & a Text of
+    // newline, which is unexpected and probably we should find out the
+    // root cause
+    final childCount = line.childCount;
+    if (line.hasEmbed || (childCount > 1 && line.children.first is Embed)) {
+      final embed = line.children.first as Embed;
+      //  修改，添加判断是否VideoEmbed或者ImageEmbed
+      if (embed.value is VideoEmbed || embed.value is ImageEmbed) {
+        // 修改，添加embedSize参数
+        final width = (embed.value.data['width'] ?? 100 as num).toDouble();
+        final height = (embed.value.data['height'] ?? 100 as num).toDouble();
+        final size =
+            (width != null && height != null) ? Size(width, height) : null;
+        return EmbedProxy(embedBuilder(context, embed, readOnly), embedSize: size);
+      } else if ((embed.value is BlockEmbed && embed.value.type == 'divider')) {
+        /// 修改，下划线回调
+        return EmbedProxy(embedBuilder(context, embed, readOnly), embedSize: null);
+      }
     }
     final textSpan = _getTextSpanForWholeLine(context);
+
     final strutStyle = StrutStyle.fromTextStyle(textSpan.style!);
     final textAlign = _getTextAlign();
     final child = RichText(
@@ -118,6 +156,15 @@ class TextLine extends StatelessWidget {
 
   TextSpan _buildTextSpan(DefaultStyles defaultStyles, LinkedList<Node> nodes,
       TextStyle lineStyle) {
+    /// TODO: 临时屏蔽，交由开发者自行确定是否还存在该问题
+    // // 修改，修复RichText 为空或者换行字符时高度为0，插入一个特殊空字符占位
+    // final isWrapLine = line.toPlainText() == '\n';
+    // final useTempLine = kIsWeb && isWrapLine;
+    // final newLine = Line();
+    // if (useTempLine) {
+    //   newLine.insert(0, '\u{200B}', Style());
+    // }
+
     final children = nodes
         .map((node) => _getTextSpanFromNode(defaultStyles, node, line.style))
         .toList(growable: false);
@@ -163,7 +210,7 @@ class TextLine extends StatelessWidget {
 
     return textStyle;
   }
-
+  
   TextStyle _applyCustomAttributes(
       TextStyle textStyle, Map<String, Attribute> attributes) {
     if (customStyleBuilder == null) {
@@ -180,8 +227,15 @@ class TextLine extends StatelessWidget {
     return textStyle;
   }
 
-  TextSpan _getTextSpanFromNode(
-      DefaultStyles defaultStyles, Node node, Style lineStyle) {
+  InlineSpan _getTextSpanFromNode(DefaultStyles defaultStyles, Node node, Style lineStyle) {
+    if (node is Embed) {
+      if (node.value is MentionEmbed) {
+        return mentionBuilder?.call(node) ??
+            TextSpan(text: node.value.toString());
+      } else {
+        return TextSpan(text: '');
+      }
+    }
     final textNode = node as leaf.Text;
     final nodeStyle = textNode.style;
     var res = const TextStyle(); // This is inline text style
@@ -195,6 +249,9 @@ class TextLine extends StatelessWidget {
       Attribute.link.key: defaultStyles.link,
       Attribute.underline.key: defaultStyles.underline,
       Attribute.strikeThrough.key: defaultStyles.strikeThrough,
+      // 修改
+      Attribute.at.key: defaultStyles.at,
+      Attribute.channel.key: defaultStyles.channel,
     }.forEach((k, s) {
       if (nodeStyle.values.any((v) => v.key == k)) {
         if (k == Attribute.underline.key || k == Attribute.strikeThrough.key) {
@@ -266,16 +323,76 @@ class TextLine extends StatelessWidget {
       final backgroundColor = stringToColor(background.value);
       res = res.merge(TextStyle(backgroundColor: backgroundColor));
     }
-
+    
+    /// NOTE: 注意此处是否会影响后续的业务流程
     res = _applyCustomAttributes(res, textNode.style.attributes);
     if (hasLink && readOnly) {
+       return TextSpan(
+         text: textNode.value,
+         style: res,
+         mouseCursor: SystemMouseCursors.click,
+       );
+     }
+
+    // 添加url点击事件
+    TapGestureRecognizer? tapGestureRecognizer;
+    try {
+      if (!editable) {
+        final linkAttribuite = node.style.values
+            .firstWhere((element) => element.key == Attribute.link.key);
+        tapGestureRecognizer = TapGestureRecognizer()
+          ..onTap = () {
+            if (linkAttribuite.value is String)
+              Routes.pushHtmlPage(Get.context, linkAttribuite.value);
+          };
+      }
+    } catch (e) {}
+    if (tapGestureRecognizer == null) {
+      return separateEmojiAndUrl(textNode.value, res);
+    } else {
       return TextSpan(
-        text: textNode.value,
-        style: res,
-        mouseCursor: SystemMouseCursors.click,
-      );
+          text: textNode.value, style: res, recognizer: tapGestureRecognizer);
     }
-    return TextSpan(text: textNode.value, style: res);
+  }
+  
+
+  TextSpan separateEmojiAndUrl(String text, TextStyle style) {
+    String emojiSeparator = String.fromCharCode(0);
+    // 匹配表情和url
+    final newText = text.splitMapJoin(
+        RegExp(
+            r"\[.*?\]|(http(s)?):\/\/[(www\.)?a-zA-Z0-9@:._\+~#=-]{1,256}\.[a-z0-9]{2,6}\b([-a-zA-Z0-9!@:_\+.~#?&//=%,]*)"),
+        onMatch: (m) => "$emojiSeparator${m.group(0)}$emojiSeparator",
+        onNonMatch: (m) => "$m");
+    List<String> splits = newText.split(emojiSeparator);
+    List<InlineSpan> children = [];
+    for (var e in splits) {
+      if (e.isEmpty) continue;
+      if (e[0] == '[' && e[e.length - 1] == ']') {
+        final emojiName = e.substring(1, e.length - 1);
+        if (EmoUtil.instance.allEmoMap[emojiName] != null && !kIsWeb) {
+          children.add(WidgetSpan(
+              child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: EmoUtil.instance.getEmoIcon(emojiName, size: 17),
+          )));
+        } else {
+          children.add(TextSpan(text: e, style: style));
+        }
+      } else if (e.startsWith('http')) {
+        children.add(TextSpan(
+            text: e,
+            style: style.copyWith(color: primaryColor.shade600),
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                Routes.pushHtmlPage(Get.context, e);
+              }));
+      } else {
+        children.add(TextSpan(text: e, style: style));
+      }
+    }
+
+    return TextSpan(children: children);
   }
 
   TextStyle _merge(TextStyle a, TextStyle b) {

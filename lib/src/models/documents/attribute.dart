@@ -16,6 +16,17 @@ class Attribute<T> {
   final AttributeScope scope;
   final T value;
 
+  /// Wrap [key] with [value] for keys which has multiple status.
+  String get uniqueKey {
+    if (key == 'header') {
+      return '$key$value';
+    }
+    if (key == 'list') {
+      return '$key-$value';
+    }
+    return key;
+  }
+
   static final Map<String, Attribute> _registry = LinkedHashMap.of({
     Attribute.bold.key: Attribute.bold,
     Attribute.italic.key: Attribute.italic,
@@ -40,6 +51,8 @@ class Attribute<T> {
     Attribute.style.key: Attribute.style,
     Attribute.token.key: Attribute.token,
     Attribute.script.key: Attribute.script,
+    Attribute.at.key: Attribute.at,
+    Attribute.channel.key: Attribute.channel,
   });
 
   static final BoldAttribute bold = BoldAttribute();
@@ -87,6 +100,10 @@ class Attribute<T> {
   static final TokenAttribute token = TokenAttribute('');
 
   static final ScriptAttribute script = ScriptAttribute('');
+//  修改
+  static final AtAttribute at = AtAttribute(null);
+
+  static final ChannelAttribute channel = ChannelAttribute(null);
 
   static final Set<String> inlineKeys = {
     Attribute.bold.key,
@@ -95,6 +112,8 @@ class Attribute<T> {
     Attribute.underline.key,
     Attribute.strikeThrough.key,
     Attribute.link.key,
+    Attribute.at.key,
+    Attribute.channel.key,
     Attribute.color.key,
     Attribute.background.key,
     Attribute.placeholder.key,
@@ -319,4 +338,11 @@ class TokenAttribute extends Attribute<String> {
 // `script` is supposed to be inline attribute but it is not supported yet
 class ScriptAttribute extends Attribute<String> {
   ScriptAttribute(String val) : super('script', AttributeScope.IGNORE, val);
+// 修改
+class AtAttribute extends Attribute<String?> {
+  AtAttribute(String? val) : super('at', AttributeScope.INLINE, val);
+}
+
+class ChannelAttribute extends Attribute<String?> {
+  ChannelAttribute(String? val) : super('channel', AttributeScope.INLINE, val);
 }
