@@ -100,7 +100,7 @@ class Attribute<T> {
   static final TokenAttribute token = TokenAttribute('');
 
   static final ScriptAttribute script = ScriptAttribute('');
-//  修改
+  //  修改
   static final AtAttribute at = AtAttribute(null);
 
   static final ChannelAttribute channel = ChannelAttribute(null);
@@ -338,6 +338,8 @@ class TokenAttribute extends Attribute<String> {
 // `script` is supposed to be inline attribute but it is not supported yet
 class ScriptAttribute extends Attribute<String> {
   ScriptAttribute(String val) : super('script', AttributeScope.IGNORE, val);
+}
+
 // 修改
 class AtAttribute extends Attribute<String?> {
   AtAttribute(String? val) : super('at', AttributeScope.INLINE, val);
