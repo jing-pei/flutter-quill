@@ -362,8 +362,8 @@ class Line extends Container<Leaf?> {
       result = result.mergeAll(node.style);
       var pos = node.length - data.offset;
       while (!node!.isLast && pos < local) {
-        node = node.next as Leaf?;
-        _handle(node!.style);
+        node = node.next as Leaf;
+        _handle(node.style);
         pos += node.length;
       }
     }
@@ -394,8 +394,8 @@ class Line extends Container<Leaf?> {
       result.add(node.style);
       var pos = node.length - data.offset;
       while (!node!.isLast && pos < local) {
-        node = node.next as Leaf?;
-        result.add(node!.style);
+        node = node.next as Leaf;
+        result.add(node.style);
         pos += node.length;
       }
     }
