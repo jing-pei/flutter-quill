@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_keyboard_visibility/flutter_keyboard_visibility.dart';
 import 'package:tuple/tuple.dart';
 
+import '../../models/documents/nodes/node.dart';
 import '../models/documents/attribute.dart';
 import '../models/documents/document.dart';
 import '../models/documents/nodes/block.dart';
@@ -22,6 +23,8 @@ import 'cursor.dart';
 import 'default_styles.dart';
 import 'delegate.dart';
 import 'editor.dart';
+import 'keyboard_listener.dart';
+import 'link.dart';
 import 'proxy.dart';
 import 'quill_single_child_scroll_view.dart';
 import 'raw_editor/raw_editor_state_selection_delegate_mixin.dart';
@@ -63,6 +66,7 @@ class RawEditor extends StatefulWidget {
       this.enableInteractiveSelection = true,
       this.scrollPhysics,
       this.embedBuilder = defaultEmbedBuilder,
+      this.linkActionPickerDelegate = defaultLinkActionPickerDelegate,
       this.customStyleBuilder,
       this.floatingCursorDisabled = false,
       this.mentionBuilder,
@@ -75,31 +79,139 @@ class RawEditor extends StatefulWidget {
             'maxHeight cannot be null'),
         showCursor = showCursor ?? true,
         super(key: key);
+
+  /// Controls the document being edited.
   final QuillController controller;
+
+  /// Controls whether this editor has keyboard focus.
   final FocusNode focusNode;
   final ScrollController scrollController;
   final bool scrollable;
   final double scrollBottomInset;
+
+  /// Additional space around the editor contents.
   final EdgeInsetsGeometry padding;
+
+  /// Whether the text can be changed.
+  ///
+  /// When this is set to true, the text cannot be modified
+  /// by any shortcut or keyboard operation. The text is still selectable.
+  ///
+  /// Defaults to false. Must not be null.
   final bool readOnly;
+
   final String? placeholder;
+
+  /// Callback which is triggered when the user wants to open a URL from
+  /// a link in the document.
   final ValueChanged<String>? onLaunchUrl;
+
+  /// Configuration of toolbar options.
+  ///
+  /// By default, all options are enabled. If [readOnly] is true,
+  /// paste and cut will be disabled regardless.
   final ToolbarOptions toolbarOptions;
+
+  /// Whether to show selection handles.
+  ///
+  /// When a selection is active, there will be two handles at each side of
+  /// boundary, or one handle if the selection is collapsed. The handles can be
+  /// dragged to adjust the selection.
+  ///
+  /// See also:
+  ///
+  ///  * [showCursor], which controls the visibility of the cursor.
   final bool showSelectionHandles;
+
+  /// Whether to show cursor.
+  ///
+  /// The cursor refers to the blinking caret when the editor is focused.
+  ///
+  /// See also:
+  ///
+  ///  * [cursorStyle], which controls the cursor visual representation.
+  ///  * [showSelectionHandles], which controls the visibility of the selection
+  ///    handles.
   final bool showCursor;
+
+  /// The style to be used for the editing cursor.
   final CursorStyle cursorStyle;
+
+  /// Configures how the platform keyboard will select an uppercase or
+  /// lowercase keyboard.
+  ///
+  /// Only supports text keyboards, other keyboard types will ignore this
+  /// configuration. Capitalization is locale-aware.
+  ///
+  /// Defaults to [TextCapitalization.none]. Must not be null.
+  ///
+  /// See also:
+  ///
+  ///  * [TextCapitalization], for a description of each capitalization behavior
   final TextCapitalization textCapitalization;
+
+  /// The maximum height this editor can have.
+  ///
+  /// If this is null then there is no limit to the editor's height and it will
+  /// expand to fill its parent.
   final double? maxHeight;
+
+  /// The minimum height this editor can have.
   final double? minHeight;
   final DefaultStyles? customStyles;
+
+  /// Whether this widget's height will be sized to fill its parent.
+  ///
+  /// If set to true and wrapped in a parent widget like [Expanded] or
+  ///
+  /// Defaults to false.
   final bool expands;
+
+  /// Whether this editor should focus itself if nothing else is already
+  /// focused.
+  ///
+  /// If true, the keyboard will open as soon as this text field obtains focus.
+  /// Otherwise, the keyboard is only shown after the user taps the text field.
+  ///
+  /// Defaults to false. Cannot be null.
   final bool autoFocus;
+
+  /// The color to use when painting the selection.
   final Color selectionColor;
+
+  /// Delegate for building the text selection handles and toolbar.
+  ///
+  /// The [RawEditor] widget used on its own will not trigger the display
+  /// of the selection toolbar by itself. The toolbar is shown by calling
+  /// [RawEditorState.showToolbar] in response to an appropriate user event.
   final TextSelectionControls selectionCtrls;
+
+  /// The appearance of the keyboard.
+  ///
+  /// This setting is only honored on iOS devices.
+  ///
+  /// Defaults to [Brightness.light].
   final Brightness keyboardAppearance;
+
+  /// If true, then long-pressing this TextField will select text and show the
+  /// cut/copy/paste menu, and tapping will move the text caret.
+  ///
+  /// True by default.
+  ///
+  /// If false, most of the accessibility support for selecting text, copy
+  /// and paste, and moving the caret will be disabled.
   final bool enableInteractiveSelection;
+
+  /// The [ScrollPhysics] to use when vertically scrolling the input.
+  ///
+  /// If not specified, it will behave according to the current platform.
+  ///
+  /// See [Scrollable.physics].
   final ScrollPhysics? scrollPhysics;
+
+  /// Builder function for embeddable objects.
   final EmbedBuilder embedBuilder;
+  final LinkActionPickerDelegate linkActionPickerDelegate;
   final CustomStyleBuilder? customStyleBuilder;
   final bool floatingCursorDisabled;
     // 修改，添加mention builder
@@ -227,9 +339,11 @@ class RawEditorState extends EditorState
       data: _styles!,
       child: MouseRegion(
         cursor: SystemMouseCursors.text,
-        child: Container(
-          constraints: constraints,
-          child: child,
+        child: QuillKeyboardListener(
+          child: Container(
+            constraints: constraints,
+            child: child,
+          ),
         ),
       ),
     );
@@ -279,6 +393,7 @@ class RawEditorState extends EditorState
         final attrs = node.style.attributes;
         final editableTextBlock = EditableTextBlock(
             block: node,
+            controller: widget.controller,
             textDirection: _textDirection,
             scrollBottomInset: widget.scrollBottomInset,
             verticalSpacing: _getVerticalSpacingForBlock(node, _styles),
@@ -291,6 +406,8 @@ class RawEditorState extends EditorState
                 ? const EdgeInsets.all(16)
                 : null,
             embedBuilder: widget.embedBuilder,
+            linkActionPicker: _linkActionPicker,
+            onLaunchUrl: widget.onLaunchUrl,
             cursorCont: _cursorCont,
             indentLevelCounts: indentLevelCounts,
             onCheckboxTap: _handleCheckboxTap,
@@ -318,6 +435,9 @@ class RawEditorState extends EditorState
       // onMentionTap: widget.onMentionTap,
       mentionBuilder: widget.mentionBuilder,
       editable: widget.editable,
+      controller: widget.controller,
+      linkActionPicker: _linkActionPicker,
+      onLaunchUrl: widget.onLaunchUrl,
     );
     final editableTextLine = EditableTextLine(
         node,
@@ -407,7 +527,7 @@ class RawEditorState extends EditorState
           _keyboardVisibilityController?.onChange.listen((visible) {
         _keyboardVisible = visible;
         if (visible) {
-          _onChangeTextEditingValue();
+          _onChangeTextEditingValue(!_hasFocus);
         }
       });
     }
@@ -503,7 +623,7 @@ class RawEditorState extends EditorState
   }
 
   void _updateSelectionOverlayForScroll() {
-    _selectionOverlay?.markNeedsBuild();
+    _selectionOverlay?.updateForScroll();
   }
 
   void _didChangeTextEditingValue([bool ignoreFocus = false]) {
@@ -538,11 +658,19 @@ class RawEditorState extends EditorState
     _cursorCont.startOrStopCursorTimerIfNeeded(
         _hasFocus, widget.controller.selection);
     if (hasConnection) {
+      // To keep the cursor from blinking while typing, we want to restart the
+      // cursor timer every time a new character is typed.
       _cursorCont
         ..stopCursorTimer(resetCharTicks: false)
         ..startCursorTimer();
     }
 
+    // Refresh selection overlay after the build step had a chance to
+    // update and register all children of RenderEditor. Otherwise this will
+    // fail in situations where a new line of text is entered, which adds
+    // a new RenderEditableBox child. If we try to update selection overlay
+    // immediately it'll not be able to find the new child since it hasn't been
+    // built yet.
     SchedulerBinding.instance!.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -567,22 +695,18 @@ class RawEditorState extends EditorState
       }
     } else if (_hasFocus) {
       _selectionOverlay?.hide();
-      _selectionOverlay = null;
 
       _selectionOverlay = EditorTextSelectionOverlay(
-        textEditingValue,
-        false,
-        context,
-        widget,
-        _toolbarLayerLink,
-        _startHandleLayerLink,
-        _endHandleLayerLink,
-        getRenderEditor(),
-        widget.selectionCtrls,
-        this,
-        DragStartBehavior.start,
-        null,
-        _clipboardStatus,
+        value: textEditingValue,
+        context: context,
+        debugRequiredFor: widget,
+        toolbarLayerLink: _toolbarLayerLink,
+        startHandleLayerLink: _startHandleLayerLink,
+        endHandleLayerLink: _endHandleLayerLink,
+        renderObject: getRenderEditor(),
+        selectionCtrls: widget.selectionCtrls,
+        selectionDelegate: this,
+        clipboardStatus: _clipboardStatus,
       );
       _selectionOverlay!.handlesVisible = _shouldShowSelectionHandles();
       _selectionOverlay!.showHandles();
@@ -611,6 +735,11 @@ class RawEditorState extends EditorState
       // Inform the widget that the value of clipboardStatus has changed.
       // Trigger build and updateChildren
     });
+  }
+
+  Future<LinkMenuAction> _linkActionPicker(Node linkNode) async {
+    final link = linkNode.style.attributes[Attribute.link.key]!.value!;
+    return widget.linkActionPickerDelegate(context, link);
   }
 
   bool _showCaretOnScreenScheduled = false;
@@ -682,6 +811,10 @@ class RawEditorState extends EditorState
     getRenderEditor()!.debugAssertLayoutUpToDate();
   }
 
+  /// Shows the selection toolbar at the location of the current cursor.
+  ///
+  /// Returns `false` if a toolbar couldn't be shown, such as when the toolbar
+  /// is already shown, or when no text selection currently exists.
   @override
   bool showToolbar() {
     // Web is using native dom elements to enable clipboard functionality of the
